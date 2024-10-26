@@ -13,15 +13,15 @@ from torchsummary import summary
 
 # 输入测试
 #-------------------------------------------------------------------------------------------------------------#
-img = Image.open('test.jpg')
-fig = plt.figure()
-plt.imshow(img)
-plt.show()
-
-# resize to ImageNet size
-transform = Compose([Resize((224, 224)), ToTensor()])
-x = transform(img)
-x = x.unsqueeze(0)  # 主要是为了添加batch这个维度
+# img = Image.open('test.jpg')
+# fig = plt.figure()
+# plt.imshow(img)
+# plt.show()
+#
+# # resize to ImageNet size
+# transform = Compose([Resize((224, 224)), ToTensor()])
+# x = transform(img)
+# x = x.unsqueeze(0)  # 主要是为了添加batch这个维度
 
 # 定义Patches Embedding层
 #-------------------------------------------------------------------------------------------------------------#
@@ -46,7 +46,6 @@ class PatchEmbedding(nn.Module):
         # 将cls token在维度1扩展到输入上
         x = torch.cat([cls_tokens, x], dim=1)
         # 添加位置编码
-        print(x.shape, self.positions.shape)
         # 这里运用了广播机制，把原来2维变成了3维
         x += self.positions
         return x
@@ -64,43 +63,40 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, x: Tensor, mask: Tensor = None) -> Tensor:
         # 将queries，keys和values划分为num_heads
-        print("1qkv's shape: ", self.qkv(x).shape)  # 使用单个矩阵一次性计算出queries,keys,values
         qkv = rearrange(self.qkv(x), "b n (h d qkv) -> (qkv) b h n d", h=self.num_heads, qkv=3)  # 划分到num_heads个头上
-        print("2qkv's shape: ", qkv.shape)
+
 
         queries, keys, values = qkv[0], qkv[1], qkv[2]
-        print("queries's shape: ", queries.shape)
-        print("keys's shape: ", keys.shape)
-        print("values's shape: ", values.shape)
+
 
         # 在最后一个维度上相加
         energy = torch.einsum('bhqd, bhkd -> bhqk', queries, keys)  # batch, num_heads, query_len, key_len
-        print("energy's shape: ", energy.shape)
+
         # 例如处理句子，句子的长度往往是不同的。为了能够将这些变长序列放入神经网络模型（如 Transformer 架构）进行批量处理，通常会将序列填充到相同的长度。Mask 用于标记哪些位置是原始数据，哪些位置是填充的数据。
         if mask is not None:
             fill_value = torch.finfo(torch.float32).min
             energy.mask_fill(~mask, fill_value)
 
         scaling = self.emb_size ** (1 / 2)
-        print("scaling: ", scaling)
+
         att = F.softmax(energy, dim=-1) / scaling
-        print("att1' shape: ", att.shape)
+
         att = self.att_drop(att)
-        print("att2' shape: ", att.shape)
+
 
         # 在第三个维度上相加
         out = torch.einsum('bhal, bhlv -> bhav ', att, values)
-        print("out1's shape: ", out.shape)
+
         out = rearrange(out, "b h n d -> b n (h d)")
-        print("out2's shape: ", out.shape)
+
         out = self.projection(out)
-        print("out3's shape: ", out.shape)
+
         return out
 
 
-patches_embedded = PatchEmbedding()(x)
-print("patches_embedding's shape: ", patches_embedded.shape)
-MultiHeadAttention()(patches_embedded).shape
+# patches_embedded = PatchEmbedding()(x)
+# print("patches_embedding's shape: ", patches_embedded.shape)
+# MultiHeadAttention()(patches_embedded).shape
 
 
 # 定义一个ResNet
@@ -185,7 +181,8 @@ class ViT(nn.Sequential):
 
 # 计算参数
 # -------------------------------------------------------------------------------------------------------------#
-model = ViT()
-summary(model, input_size=[(3, 224, 224)], batch_size=1, device="cpu")
+if __name__ == '__main__':
+    model = ViT()
+    summary(model, input_size=[(3, 224, 224)], batch_size=1, device="cpu")
 
 
